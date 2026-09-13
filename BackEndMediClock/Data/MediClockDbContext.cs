@@ -26,7 +26,7 @@ namespace BackEndMediClock.Data
             //1-N Dispositivo-Eventos
             modelBuilder.Entity<Evento>(e =>
                 e.HasOne(e => e.Dispositivo)
-                .WithMany()
+                .WithMany(d => d.Eventos)
                 .HasForeignKey(e => e.DispositivoId)
                 .OnDelete(DeleteBehavior.Restrict)
             );

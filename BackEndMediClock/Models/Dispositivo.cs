@@ -13,5 +13,8 @@ namespace BackEndMediClock.Models
 
         [InverseProperty(nameof(Alarma.Dispositivo))]
         public ICollection<Alarma> Alarmas { get; set; } = new List<Alarma>();
+
+        [InverseProperty(nameof(Evento.Dispositivo))]
+        public ICollection<Evento> Eventos { get; set; } = new List<Evento>();
     }
 }

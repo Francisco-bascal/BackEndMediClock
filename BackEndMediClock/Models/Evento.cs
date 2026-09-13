@@ -3,7 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BackEndMediClock.Models
 {
-    public class Evento
+    //Record para que el registro sea inmutable, se crea y queda tal cual es
+    public record Evento
     {
         [Key]
         public int EventoId { get; set; }
@@ -11,6 +12,8 @@ namespace BackEndMediClock.Models
         public DateTime FechaHora { get; set; }
         [Required]
         public TipoEvento Tipo { get; set; }
+        [Range(10, 300)]
+        public string Descripcion { get; set; } = string.Empty;
 
 
         [ForeignKey(nameof(Dispositivo))]
