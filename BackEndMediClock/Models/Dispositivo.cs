@@ -7,7 +7,7 @@ namespace BackEndMediClock.Models
     {
         [Key]
         public int DispositivoId { get; set; }
-        [Required, StringLength(50, MinimumLength = 4, ErrorMessage = "El nombre de la alarma debe tener entre 4 y 50 caracteres")]
+        [Required, StringLength(50, MinimumLength = 4, ErrorMessage = "El nombre del dispositivo debe tener entre 4 y 50 caracteres")]
         public string Nombre { get; set; } = string.Empty;
 
 
