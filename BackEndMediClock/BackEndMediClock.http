@@ -1,0 +1,6 @@
+@BackEndMediClock_HostAddress = http://localhost:5172
+
+GET {{BackEndMediClock_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
