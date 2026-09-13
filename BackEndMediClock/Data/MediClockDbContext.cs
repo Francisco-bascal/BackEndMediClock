@@ -23,11 +23,29 @@ namespace BackEndMediClock.Data
                 .OnDelete(DeleteBehavior.Restrict)
             );
 
+            //Creación de una clave para mantener la unicidad de una alarma de un número dado de un dispositivo para un día dado.
+            modelBuilder.Entity<Alarma>(e =>
+                e.HasIndex(a => new 
+                {
+                    a.DispositivoId,
+                    a.DiaSemana,
+                    a.NumeroAlarma
+                }).IsUnique()
+            );
+
             //1-N Dispositivo-Eventos
             modelBuilder.Entity<Evento>(e =>
-                e.HasOne(e => e.Dispositivo)
+                e.HasOne(ev => ev.Dispositivo)
                 .WithMany(d => d.Eventos)
-                .HasForeignKey(e => e.DispositivoId)
+                .HasForeignKey(ev => ev.DispositivoId)
+                .OnDelete(DeleteBehavior.Restrict)
+            );
+
+            //1-N Alarma-Eventos
+            modelBuilder.Entity<Evento>(e =>
+                e.HasOne(ev => ev.Alarma)
+                .WithMany(a => a.Eventos)
+                .HasForeignKey(ev => ev.AlarmaId)
                 .OnDelete(DeleteBehavior.Restrict)
             );
         }

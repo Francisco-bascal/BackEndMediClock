@@ -18,5 +18,8 @@ namespace BackEndMediClock.Models
         [ForeignKey(nameof(Dispositivo))]
         public int DispositivoId { get; set; }
         public Dispositivo Dispositivo { get; set; } = null!;
+
+        [InverseProperty(nameof(Evento.Alarma))]
+        public ICollection<Evento> Eventos { get; set; } = new List<Evento>();
     }
 }

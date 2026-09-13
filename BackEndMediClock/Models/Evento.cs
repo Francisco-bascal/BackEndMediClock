@@ -3,8 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BackEndMediClock.Models
 {
-    //Record para que el registro sea inmutable, se crea y queda tal cual es
-    public record Evento
+    public class Evento
     {
         [Key]
         public int EventoId { get; set; }
@@ -12,7 +11,7 @@ namespace BackEndMediClock.Models
         public DateTime FechaHora { get; set; }
         [Required]
         public TipoEvento Tipo { get; set; }
-        [Range(10, 300)]
+        [StringLength(300, MinimumLength = 10, ErrorMessage = "La longitud de la descripción debe estar entre 10 y 300 caracteres")]
         public string Descripcion { get; set; } = string.Empty;
 
 
@@ -22,7 +21,7 @@ namespace BackEndMediClock.Models
 
         [ForeignKey(nameof(Alarma))]
         public int? AlarmaId { get; set; }
-        public Alarma Alarma { get; set; } = null!;
+        public Alarma? Alarma { get; set; } = null!;
     }
 
     public enum TipoEvento 
