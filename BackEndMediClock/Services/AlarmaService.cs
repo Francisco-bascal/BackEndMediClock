@@ -82,6 +82,11 @@ namespace BackEndMediClock.Services
                     $"Ya existe la alarma {dto.NumeroAlarma} para el día {dto.DiaSemana} del dispositivo {dispositivoId}.");
             }
 
+            if (!await ValidarOrdenAsync(dispositivoId, dto.DiaSemana, dto.NumeroAlarma, dto.Hora, null, cancellationToken))
+            {
+                return Resultado<AlarmaDto>.Validacion("La hora de la alarma 1 debe ser anterior a la de la alarma 2 del mismo día.");
+            }
+
             var alarma = new Alarma
             {
                 DispositivoId = dispositivoId,
@@ -120,6 +125,11 @@ namespace BackEndMediClock.Services
             {
                 return Resultado<AlarmaDto>.Conflicto(
                     $"Ya existe la alarma {dto.NumeroAlarma} para el día {dto.DiaSemana} del dispositivo {dispositivoId}.");
+            }
+
+            if (!await ValidarOrdenAsync(dispositivoId, dto.DiaSemana, dto.NumeroAlarma, dto.Hora, alarmaId, cancellationToken))
+            {
+                return Resultado<AlarmaDto>.Validacion("La hora de la alarma 1 debe ser anterior a la de la alarma 2 del mismo día.");
             }
 
             alarma.DiaSemana = dto.DiaSemana;
@@ -177,6 +187,33 @@ namespace BackEndMediClock.Services
                     && a.NumeroAlarma == numeroAlarma
                     && (!alarmaIdExcluida.HasValue || a.AlarmaId != alarmaIdExcluida.Value),
                 cancellationToken);
+
+        private async Task<bool> ValidarOrdenAsync(
+            int dispositivoId,
+            int diaSemana,
+            int numeroAlarma,
+            TimeOnly hora,
+            int? alarmaIdExcluida,
+            CancellationToken cancellationToken)
+        {
+            var otroNumero = numeroAlarma == 1 ? 2 : 1;
+
+            var horaOtra = await _context.Alarmas
+                .AsNoTracking()
+                .Where(a => a.DispositivoId == dispositivoId
+                    && a.DiaSemana == diaSemana
+                    && a.NumeroAlarma == otroNumero
+                    && (!alarmaIdExcluida.HasValue || a.AlarmaId != alarmaIdExcluida.Value))
+                .Select(a => (TimeOnly?)a.Hora)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!horaOtra.HasValue)
+            {
+                return true;
+            }
+
+            return numeroAlarma == 1 ? hora < horaOtra.Value : hora > horaOtra.Value;
+        }
 
         private static AlarmaDto CrearAlarmaDto(Alarma alarma) => new()
         {
