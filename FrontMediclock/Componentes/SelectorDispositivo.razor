@@ -56,6 +56,10 @@ else
         {
             error = string.Join(" ", ex.Mensajes);
         }
+        catch (Exception ex)
+        {
+            error = $"{ex.GetType().Name}: {ex.Message}";
+        }
         finally
         {
             cargando = false;

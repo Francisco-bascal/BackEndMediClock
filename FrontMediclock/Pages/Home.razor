@@ -328,6 +328,10 @@ else if (config is not null)
         {
             errorGeneral = string.Join(" ", ex.Mensajes);
         }
+        catch (Exception ex)
+        {
+            errorGeneral = $"{ex.GetType().Name}: {ex.Message}";
+        }
         finally
         {
             cargando = false;
@@ -357,6 +361,10 @@ else if (config is not null)
         catch (ExcepcionApi ex)
         {
             errorEventos = string.Join(" ", ex.Mensajes);
+        }
+        catch (Exception ex)
+        {
+            errorEventos = $"{ex.GetType().Name}: {ex.Message}";
         }
         finally
         {
