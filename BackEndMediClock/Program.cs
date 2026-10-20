@@ -116,4 +116,10 @@ app.Map("/ws/dispositivo/{id:int}", async (
 
 app.MapControllers();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<MediClockDbContext>();
+    db.Database.Migrate();
+}
+
 app.Run();

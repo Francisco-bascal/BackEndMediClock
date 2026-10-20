@@ -31,6 +31,9 @@ unsigned long ultimaLecturaRTCms = 0;
 unsigned long ultimaSincNTPms = 0;    // última sincronización NTP exitosa
 unsigned long ultimoIntentoNTPms = 0;  // último intento NTP (exitoso o no)
 unsigned long ultimaConsultaMs = 0;
+unsigned long ledTestHastaMs = 0;
+bool ledTestEncendido = false;
+unsigned long ultimoParpadeoLedMs = 0;
 WebSocketsClient webSocket;
 bool wsConectado = false;
 bool refrescarAlarmasPendiente = false;
@@ -579,7 +582,7 @@ enum EstadoDispensador {
   DISP_EN_REPOSO = 0,  // sin trabajo pendiente
   DISP_HOMING = 1,     // girando hasta que el reed marque el origen
   DISP_DOSIS = 2,      // avanzando los pasos de la dosis
-  DISP_AVISO = 3        // mostrando "Dosis entregada" antes de liberar
+  DISP_AVISO = 3       // mostrando "Dosis entregada" antes de liberar
 };
 EstadoDispensador estadoDispensador = DISP_EN_REPOSO;
 long pasosHomingDados = 0;       // pasos girados buscando el origen
@@ -629,6 +632,7 @@ void iniciarCicloDosis() {
   ultimoCambioBuzzerms = millis();
   encenderBuzzer();
   digitalWrite(PIN_LED, HIGH);
+  ledTestHastaMs = millis() + 5000;
   Serial.println(F("[mediclock] dispensa: homing con reed"));
 }
 
@@ -815,11 +819,14 @@ void setup() {
   // WIFI_RETRY_INTERVAL_MS; sin red el equipo sigue con NVS + RTC.
   WiFi.mode(WIFI_STA);
 
-  webSocket.setInsecure();
+  pinMode(LED_TEST, OUTPUT);
+  digitalWrite(LED_TEST, LOW);
+
+  // Inicialización directa SSL mediante WebSocketsClient
   webSocket.beginSSL(WS_HOST, WS_PORT, WS_PATH);
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(WS_RECONNECT_INTERVAL_MS);
-  webSocket.enableHeartbeat(15000, 3000, 2);
+  //webSocket.enableHeartbeat(15000, 3000, 2);
 
   // GPIO34/35 son solo entrada y no tienen pull-up interno:
   // llevan pull-up externo de 10 k a 3,3 V y activan en LOW (a GND).
@@ -888,6 +895,16 @@ void loop() {
     alarmaPendiente.hora = horaValida ? tiempoCacheado.Hour() : 0;
     alarmaPendiente.minuto = horaValida ? tiempoCacheado.Minute() : 0;
     iniciarCicloDosis();
+  }
+  if (millis() < ledTestHastaMs) {
+    if (millis() - ultimoParpadeoLedMs >= 250) {
+      ultimoParpadeoLedMs = millis();
+      ledTestEncendido = !ledTestEncendido;
+      digitalWrite(LED_TEST, ledTestEncendido ? HIGH : LOW);
+    }
+  } else if (ledTestHastaMs != 0) {
+    digitalWrite(LED_TEST, LOW);
+    ledTestHastaMs = 0;
   }
   actualizarActuadores();
 }

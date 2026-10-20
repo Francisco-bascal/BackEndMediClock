@@ -55,8 +55,8 @@
 
 // ------------------------------------------------------------------- Red
 // SOLO MARCADORES — nunca guardar claves reales (ver política del repo).
-#define WIFI_SSID          "TU_SSID"
-#define WIFI_PASSWORD      "TU_PASSWORD"
+#define WIFI_SSID          "CPE-MODUHO"
+#define WIFI_PASSWORD      "94e8c5384312"
 #define BACKEND_URL        "https://mediclockbackend.runasp.net/api/dispositivos/1"
 #define BACKEND_ALARMS_PATH "/alarmas"
 #define BACKEND_EVENT_PATH  "/eventos"
@@ -80,6 +80,7 @@
 #define WS_PORT   443
 #define WS_PATH   "/ws/dispositivo/1"   // mantener sincronizado con DISPOSITIVO_ID
 #define WS_RECONNECT_INTERVAL_MS 5000
+#define LED_TEST 2
 #define HTTP_TIMEOUT_MS         5000   // T4: tope de espera de GET/POST, sin bloquear
 
 // --------------------------------------------------- T5: actuadores
