@@ -79,6 +79,16 @@ public class ApiMediClock
         await ValidarRespuesta(respuesta, "No se pudo borrar la alarma.");
     }
 
+    // POST /api/dispositivos/{id}/dispensar (202 Accepted).
+    // Fuerza la entrega de una dosis en el dispositivo seleccionado.
+    // Si el micro esta conectado por WebSocket se envia de inmediato;
+    // si esta desconectado queda pendiente y se entrega al reconectar.
+    public async Task ForzarDispensacionAsync(int id)
+    {
+        var respuesta = await _http.PostAsync($"api/dispositivos/{id}/dispensar", null);
+        await ValidarRespuesta(respuesta, "No se pudo forzar la dispensacion.");
+    }
+
     // GET /api/dispositivos/{id}/eventos?pagina=&tamanioPagina=
     // La paginacion la aplica el servidor (pagina desde 1).
     public async Task<List<Evento>> ListarEventos(int id, int pagina = 1, int tamanioPagina = 10)

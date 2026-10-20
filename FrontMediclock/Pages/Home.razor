@@ -95,6 +95,13 @@ else if (config is not null)
         </div>
     </section>
 
+    <section class="mc-selector">
+        <button class="mc-boton mc-boton-primario" @onclick="ForzarDispensacion" disabled="@forzandoDispensacion">
+            @(forzandoDispensacion ? "Dispensando..." : "Forzar dispensacion")
+        </button>
+        <span class="mc-detalle">Envia la orden de entrega de una dosis al dispositivo seleccionado.</span>
+    </section>
+
     @if (mensajeExito is not null)
     {
         <p class="mc-exito">@mensajeExito</p>
@@ -271,6 +278,7 @@ else if (config is not null)
     private ConfiguracionDispositivo? config;
     private bool cargando = true;
     private bool guardando = false;
+    private bool forzandoDispensacion = false;
     private string? errorGeneral;
     private string? mensajeExito;
     private string? mensajeError;
@@ -542,6 +550,36 @@ else if (config is not null)
     private void CancelarBorrado()
     {
         alarmaABorrar = null;
+    }
+
+    // Fuerza la entrega de una dosis en el dispositivo seleccionado.
+    private async Task ForzarDispensacion()
+    {
+        if (config is null)
+        {
+            return;
+        }
+
+        forzandoDispensacion = true;
+        mensajeExito = null;
+        mensajeError = null;
+        try
+        {
+            await Api.ForzarDispensacionAsync(Estado.DispositivoId);
+            mensajeExito = "Dispensacion forzada: la orden se envio al dispositivo.";
+        }
+        catch (ExcepcionApi ex)
+        {
+            mensajeError = string.Join(" ", ex.Mensajes);
+        }
+        catch (Exception ex)
+        {
+            mensajeError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            forzandoDispensacion = false;
+        }
     }
 
     // Guarda con validacion client-side previa: rango valido y sin
