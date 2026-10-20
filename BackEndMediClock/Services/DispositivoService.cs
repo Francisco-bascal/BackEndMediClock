@@ -3,16 +3,19 @@ using BackEndMediClock.Data;
 using BackEndMediClock.DTOs;
 using BackEndMediClock.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Net.WebSockets;
 
 namespace BackEndMediClock.Services
 {
     public class DispositivoService
     {
         private readonly MediClockDbContext _context;
+        private readonly ConexionDispositivoManager _conexion;
 
-        public DispositivoService(MediClockDbContext context)
+        public DispositivoService(MediClockDbContext context, ConexionDispositivoManager conexion)
         {
             _context = context;
+            _conexion = conexion;
         }
 
         public async Task<List<DispositivoDto>> ObtenerTodosAsync(
@@ -129,6 +132,68 @@ namespace BackEndMediClock.Services
             await _context.SaveChangesAsync(cancellationToken);
 
             return Resultado.Success();
+        }
+
+        public async Task<Resultado> SolicitarDispensacionAsync(
+            int id,
+            CancellationToken cancellationToken = default)
+        {
+            if (!await _context.Dispositivos.AnyAsync(d => d.DispositivoId == id, cancellationToken))
+            {
+                return Resultado.NoEncontrado($"No existe un dispositivo con el id {id}.");
+            }
+
+            await _context.Dispositivos
+                .Where(d => d.DispositivoId == id)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.DispensarPendiente, true), cancellationToken);
+
+            var enviado = await _conexion.EnviarAsync(id, "{\"cmd\":\"DISPENSAR\"}", cancellationToken);
+
+            if (enviado)
+            {
+                await _context.Dispositivos
+                    .Where(d => d.DispositivoId == id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.DispensarPendiente, false), cancellationToken);
+            }
+
+            return Resultado.Success();
+        }
+
+        public async Task EntregarComandosPendientesAsync(
+            int id,
+            WebSocket socket,
+            CancellationToken cancellationToken = default)
+        {
+            var dispositivo = await _context.Dispositivos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.DispositivoId == id, cancellationToken);
+
+            if (dispositivo is null)
+            {
+                return;
+            }
+
+            if (dispositivo.ConfiguracionPendiente)
+            {
+                var enviado = await _conexion.EnviarAsync(id, "{\"cmd\":\"REFRESH_CONFIG\"}", cancellationToken);
+                if (enviado)
+                {
+                    await _context.Dispositivos
+                        .Where(d => d.DispositivoId == id)
+                        .ExecuteUpdateAsync(s => s.SetProperty(d => d.ConfiguracionPendiente, false), cancellationToken);
+                }
+            }
+
+            if (dispositivo.DispensarPendiente)
+            {
+                var enviado = await _conexion.EnviarAsync(id, "{\"cmd\":\"DISPENSAR\"}", cancellationToken);
+                if (enviado)
+                {
+                    await _context.Dispositivos
+                        .Where(d => d.DispositivoId == id)
+                        .ExecuteUpdateAsync(s => s.SetProperty(d => d.DispensarPendiente, false), cancellationToken);
+                }
+            }
         }
 
         private async Task<DispositivoDto?> ObtenerDispositivoDtoAsync(

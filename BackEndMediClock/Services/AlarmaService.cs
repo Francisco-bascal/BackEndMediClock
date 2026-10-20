@@ -19,10 +19,12 @@ namespace BackEndMediClock.Services
         };
 
         private readonly MediClockDbContext _context;
+        private readonly ConexionDispositivoManager _conexion;
 
-        public AlarmaService(MediClockDbContext context)
+        public AlarmaService(MediClockDbContext context, ConexionDispositivoManager conexion)
         {
             _context = context;
+            _conexion = conexion;
         }
 
         public async Task<Resultado<List<AlarmaDto>>> ObtenerAlarmasPorDispositivoAsync(
@@ -98,6 +100,8 @@ namespace BackEndMediClock.Services
             _context.Alarmas.Add(alarma);
             await _context.SaveChangesAsync(cancellationToken);
 
+            await MarcarConfiguracionPendienteAsync(dispositivoId, cancellationToken);
+
             return Resultado<AlarmaDto>.Success(CrearAlarmaDto(alarma));
         }
 
@@ -137,6 +141,8 @@ namespace BackEndMediClock.Services
             alarma.Hora = dto.Hora;
             await _context.SaveChangesAsync(cancellationToken);
 
+            await MarcarConfiguracionPendienteAsync(dispositivoId, cancellationToken);
+
             return Resultado<AlarmaDto>.Success(CrearAlarmaDto(alarma));
         }
 
@@ -168,6 +174,8 @@ namespace BackEndMediClock.Services
 
             _context.Alarmas.Remove(alarma);
             await _context.SaveChangesAsync(cancellationToken);
+
+            await MarcarConfiguracionPendienteAsync(dispositivoId, cancellationToken);
 
             return Resultado.Success();
         }
@@ -213,6 +221,22 @@ namespace BackEndMediClock.Services
             }
 
             return numeroAlarma == 1 ? hora < horaOtra.Value : hora > horaOtra.Value;
+        }
+
+        private async Task MarcarConfiguracionPendienteAsync(int dispositivoId, CancellationToken cancellationToken)
+        {
+            await _context.Dispositivos
+                .Where(d => d.DispositivoId == dispositivoId)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.ConfiguracionPendiente, true), cancellationToken);
+
+            var enviado = await _conexion.EnviarAsync(dispositivoId, "{\"cmd\":\"REFRESH_CONFIG\"}", cancellationToken);
+
+            if (enviado)
+            {
+                await _context.Dispositivos
+                    .Where(d => d.DispositivoId == dispositivoId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.ConfiguracionPendiente, false), cancellationToken);
+            }
         }
 
         private static AlarmaDto CrearAlarmaDto(Alarma alarma) => new()

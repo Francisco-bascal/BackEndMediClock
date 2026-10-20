@@ -58,6 +58,12 @@ namespace BackEndMediClock.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DispositivoId"));
 
+                    b.Property<bool>("ConfiguracionPendiente")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("DispensarPendiente")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(50)

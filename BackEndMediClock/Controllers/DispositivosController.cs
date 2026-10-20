@@ -75,5 +75,20 @@ namespace BackEndMediClock.Controllers
             var resultado = await _dispositivoService.EliminarAsync(id, cancellationToken);
             return MapeadorResultado.DeResultado(resultado);
         }
+
+        [HttpPost("{id:int}/dispensar")]
+        public async Task<IActionResult> Dispensar(
+            int id,
+            CancellationToken cancellationToken = default)
+        {
+            var resultado = await _dispositivoService.SolicitarDispensacionAsync(id, cancellationToken);
+
+            if (!resultado.IsValid)
+            {
+                return MapeadorResultado.DeResultado(resultado);
+            }
+
+            return Accepted();
+        }
     }
 }

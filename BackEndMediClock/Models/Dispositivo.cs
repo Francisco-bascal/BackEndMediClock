@@ -16,5 +16,10 @@ namespace BackEndMediClock.Models
 
         [InverseProperty(nameof(Evento.Dispositivo))]
         public ICollection<Evento> Eventos { get; set; } = new List<Evento>();
+
+        // Comandos pendientes para el micro (entregados por WebSocket al conectar).
+        public bool ConfiguracionPendiente { get; set; }
+
+        public bool DispensarPendiente { get; set; }
     }
 }

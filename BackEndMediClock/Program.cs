@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+using System.Net.WebSockets;
 using BackEndMediClock.Data;
 using BackEndMediClock.Services;
 using Microsoft.EntityFrameworkCore;
@@ -9,16 +9,22 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
+// CORS para el front (local en desarrollo).
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("PermitirTodo", policy =>
+    options.AddPolicy("Frontend", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:5000",
+                "http://localhost:5173",
+                "https://localhost:5001",
+                "https://localhost:7000")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
@@ -32,21 +38,81 @@ builder.Services.AddDbContext<MediClockDbContext>(options =>
 builder.Services.AddScoped<DispositivoService>();
 builder.Services.AddScoped<AlarmaService>();
 builder.Services.AddScoped<EventoService>();
+builder.Services.AddSingleton<ConexionDispositivoManager>();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
+
+
+app.UseCors("Frontend");
+
+app.UseWebSockets();
 
 app.UseHttpsRedirection();
 
-app.UseCors("PermitirTodo");
-
 app.UseAuthorization();
+
+app.Map("/ws/dispositivo/{id:int}", async (
+    HttpContext context,
+    int id,
+    MediClockDbContext db,
+    DispositivoService dispositivoService,
+    CancellationToken cancellationToken) =>
+{
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+
+    var existe = await db.Dispositivos.AnyAsync(d => d.DispositivoId == id, cancellationToken);
+    if (!existe)
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    using var socket = await context.WebSockets.AcceptWebSocketAsync();
+    var manager = context.RequestServices.GetRequiredService<ConexionDispositivoManager>();
+    manager.Registrar(id, socket);
+
+    await dispositivoService.EntregarComandosPendientesAsync(id, socket, cancellationToken);
+
+    var buffer = new byte[1024];
+    try
+    {
+        while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+        {
+            var resultado = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+            if (resultado.MessageType == WebSocketMessageType.Close)
+            {
+                break;
+            }
+        }
+    }
+    catch
+    {
+        // Conexión cerrada o error de red: se desregistra abajo.
+    }
+    finally
+    {
+        manager.Desregistrar(id, socket);
+        if (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseReceived)
+        {
+            try
+            {
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None);
+            }
+            catch
+            {
+                // Ignorar errores al cerrar.
+            }
+        }
+    }
+});
 
 app.MapControllers();
 
