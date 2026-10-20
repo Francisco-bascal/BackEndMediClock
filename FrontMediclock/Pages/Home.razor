@@ -1,0 +1,653 @@
+﻿@page "/"
+@using FrontEndMediClock.Componentes
+@using FrontEndMediClock.Modelos
+@using FrontEndMediClock.Servicios
+@inject ApiMediClock Api
+@inject EstadoDispositivo Estado
+@inject PreferenciasLocales Prefs
+@implements IDisposable
+
+<PageTitle>MediClock - Alarmas</PageTitle>
+
+@* Pantalla principal T4+T5: estado del dispositivo, CRUD de alarmas
+   e historial de eventos. El backend es la fuente de verdad: despues
+   de cada cambio se recarga la configuracion completa. *@
+
+<h1>Alarmas de pastillero@(string.IsNullOrWhiteSpace(nombrePaciente) ? "" : $" {nombrePaciente.Trim()}")</h1>
+
+@* Nombre del paciente solo-front (localStorage), en seccion colapsable
+   con el mismo patron que el formulario de alarma. El titulo principal
+   sigue mostrando el nombre.
+   Reserva: cuando el backend exponga perfiles reales, el titulo
+   usara el perfil del servidor y este campo desaparecera. *@
+<section class="mc-selector">
+    <button class="mc-boton mc-boton-secundario" @onclick="AlternarPaciente">
+        @(pacienteVisible ? "Ocultar paciente" : string.IsNullOrWhiteSpace(nombrePaciente) ? "Paciente" : $"Paciente: {nombrePaciente.Trim()}")
+    </button>
+    @if (pacienteVisible)
+    {
+        <div class="mc-config-fila">
+            <label>
+                Nombre del paciente:
+                <input @bind="nombrePaciente" placeholder="Ej. Maria" maxlength="60" />
+            </label>
+            <button class="mc-boton mc-boton-secundario" @onclick="GuardarNombrePaciente">Guardar nombre</button>
+        </div>
+        @if (nombreGuardado)
+        {
+            <span class="mc-detalle">Nombre guardado en este navegador.</span>
+        }
+    }
+</section>
+
+<section class="mc-selector">
+    <SelectorDispositivo />
+</section>
+
+@if (cargando)
+{
+    <p>Cargando configuracion...</p>
+}
+else if (errorGeneral is not null)
+{
+    <p class="mc-error">@errorGeneral</p>
+    <button class="mc-boton mc-boton-secundario" @onclick="Cargar">Reintentar</button>
+}
+else if (config is not null)
+{
+    @* Tarjetas de estado: dispositivo actual, cantidad y proxima alarma. *@
+    <section class="mc-tarjetas">
+        <div class="mc-tarjeta">
+            <span class="mc-tarjeta-titulo">Dispositivo</span>
+            <strong>@NombreVisibleDispositivo()</strong>
+            @if (AliasDifiere())
+            {
+                <span class="mc-detalle">Nombre del servidor: @config.nombre</span>
+            }
+            <span class="mc-detalle">id=@config.dispositivoId</span>
+            @* Alias solo-front (localStorage por dispositivoId): no llama al PUT
+               del backend; el nombre real del servidor se conserva arriba. *@
+            <div class="mc-alias-fila">
+                <input @bind="aliasBorrador" placeholder="Alias para mostrar" maxlength="60" />
+                <button class="mc-boton mc-boton-secundario" @onclick="GuardarAlias">Guardar alias</button>
+                @if (!string.IsNullOrWhiteSpace(aliasDispositivo))
+                {
+                    <button class="mc-boton mc-boton-secundario" @onclick="QuitarAlias">Quitar</button>
+                }
+            </div>
+        </div>
+        <div class="mc-tarjeta mc-tarjeta-acento">
+            <span class="mc-tarjeta-titulo">Cantidad de alarmas</span>
+            <strong>@config.alarmas.Count</strong>
+        </div>
+        <div class="mc-tarjeta mc-tarjeta-acento">
+            <span class="mc-tarjeta-titulo">Proxima alarma</span>
+            @if (ProximaAlarma() is Alarma proxima)
+            {
+                <strong>@NombreDia(proxima.diaSemana), nro @proxima.numeroAlarma</strong>
+                <span class="mc-detalle">@proxima.hora</span>
+            }
+            else
+            {
+                <strong>Sin alarmas</strong>
+                <span class="mc-detalle">Cree la primera abajo</span>
+            }
+        </div>
+    </section>
+
+    @if (mensajeExito is not null)
+    {
+        <p class="mc-exito">@mensajeExito</p>
+    }
+    @if (mensajeError is not null)
+    {
+        <p class="mc-error">@mensajeError</p>
+    }
+
+    @* Disposicion en dos columnas: a la izquierda el boton celeste que
+       despliega el formulario compartido crear/editar; a la derecha la
+       lista compacta. En mobile se apilan (ver medclock.css). *@
+    <div class="mc-alarmas-layout">
+        <div class="mc-panel">
+            <button class="mc-boton mc-boton-celeste" @onclick="AlternarFormulario">
+                @(formularioVisible ? "Ocultar formulario" : editandoId is null ? "Nueva alarma" : "Editar alarma")
+            </button>
+            @if (formularioVisible)
+            {
+                @* Formulario compartido para crear y editar. El dia se elige
+                   por nombre (1 = lunes .. 7 = domingo) y la hora con un
+                   selector amable que se convierte a HH:mm:ss al enviar. *@
+                <h2>@(editandoId is null ? "Crear alarma" : "Editar alarma")</h2>
+                <EditForm Model="formulario" OnValidSubmit="Guardar">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    <div class="mc-campo">
+                        <label>
+                            Dia de semana:
+                            <InputSelect @bind-Value="formulario.diaSemana">
+                                <option value="1">Lunes</option>
+                                <option value="2">Martes</option>
+                                <option value="3">Miercoles</option>
+                                <option value="4">Jueves</option>
+                                <option value="5">Viernes</option>
+                                <option value="6">Sabado</option>
+                                <option value="7">Domingo</option>
+                            </InputSelect>
+                        </label>
+                        <ValidationMessage For="() => formulario.diaSemana" />
+                    </div>
+                    <div class="mc-campo">
+                        <label>
+                            Numero de alarma (1 a 3):
+                            <InputNumber @bind-Value="formulario.numeroAlarma" min="1" max="3" />
+                        </label>
+                        <ValidationMessage For="() => formulario.numeroAlarma" />
+                    </div>
+                    <div class="mc-campo">
+                        <label>
+                            Hora:
+                            <input type="time" value="@horaCorta" @onchange="AlCambiarHora" required />
+                        </label>
+                        @if (errorHora is not null)
+                        {
+                            <p class="mc-error">@errorHora</p>
+                        }
+                    </div>
+                    @if (errorFormulario is not null)
+                    {
+                        <p class="mc-error">@errorFormulario</p>
+                    }
+                    <button type="submit" class="mc-boton mc-boton-primario" disabled="@guardando">
+                        @(guardando ? "Guardando..." : editandoId is null ? "Crear alarma" : "Guardar cambios")
+                    </button>
+                    @if (editandoId is not null)
+                    {
+                        <button type="button" class="mc-boton mc-boton-secundario" @onclick="CancelarEdicion">Cancelar</button>
+                    }
+                </EditForm>
+            }
+        </div>
+
+        @* Lista compacta ordenada por dia y numero. *@
+        <section class="mc-lista-panel">
+            <h2>Lista de alarmas</h2>
+            @if (AlarmasOrdenadas().Count == 0)
+            {
+                <p>Todavia no hay alarmas para este dispositivo.</p>
+            }
+            else
+            {
+                <ul class="mc-lista mc-lista-compacta">
+                    @foreach (var alarma in AlarmasOrdenadas())
+                    {
+                        <li class="mc-item">
+                            <span>
+                                <strong>@NombreDia(alarma.diaSemana)</strong>
+                                · nro @alarma.numeroAlarma
+                                · @alarma.hora
+                            </span>
+                            <span class="mc-acciones">
+                                <button class="mc-boton mc-boton-secundario" @onclick="() => EmpezarEdicion(alarma)">Editar</button>
+                                <button class="mc-boton mc-boton-peligro" @onclick="() => PedirConfirmacion(alarma)">Borrar</button>
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @* Confirmacion en dos pasos antes de borrar: evita toques accidentales. *@
+            @if (alarmaABorrar is not null)
+            {
+                <div class="mc-confirmar">
+                    <p>¿Borrar la alarma del @NombreDia(alarmaABorrar.diaSemana).ToLower(), nro @alarmaABorrar.numeroAlarma (@alarmaABorrar.hora)?</p>
+                    <button class="mc-boton mc-boton-peligro" @onclick="ConfirmarBorrado">Si, borrar</button>
+                    <button class="mc-boton mc-boton-secundario" @onclick="CancelarBorrado">Cancelar</button>
+                </div>
+            }
+        </section>
+    </div>
+
+    @* Historial de eventos T5: tabla simple con paginacion por boton.
+       El servidor pagina desde 1; cada clic trae 20 mas y los agrega. *@
+    <section>
+        <h2>Historial de eventos</h2>
+        @if (cargandoEventos && eventos.Count == 0)
+        {
+            <p>Cargando eventos...</p>
+        }
+        else if (errorEventos is not null && eventos.Count == 0)
+        {
+            <p class="mc-error">@errorEventos</p>
+            <button class="mc-boton mc-boton-secundario" @onclick="ReintentarEventos">Reintentar</button>
+        }
+        else if (eventos.Count == 0)
+        {
+            <p>Todavia no hay eventos para este dispositivo. Cuando el pastillero registre actividad, aparecera aqui.</p>
+        }
+        else
+        {
+            @if (errorEventos is not null)
+            {
+                <p class="mc-error">@errorEventos</p>
+            }
+            <div class="mc-tabla-contenedor">
+                <table class="mc-tabla">
+                    <thead>
+                        <tr>
+                            <th>Fecha y hora</th>
+                            <th>Tipo</th>
+                            <th>Descripcion</th>
+                            <th>Alarma</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var evento in eventos)
+                        {
+                            <tr>
+                                <td>@FormatearFecha(evento.fechaHora)</td>
+                                <td>@evento.tipo</td>
+                                <td>@evento.descripcion</td>
+                                <td>@(evento.alarmaId?.ToString() ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (hayMasEventos)
+            {
+                <button class="mc-boton mc-boton-secundario" @onclick="CargarMasEventos" disabled="@cargandoEventos">
+                    @(cargandoEventos ? "Cargando..." : "Cargar mas")
+                </button>
+            }
+            else
+            {
+                <p class="mc-detalle">No hay mas eventos para mostrar.</p>
+            }
+        }
+    </section>
+}
+
+@code {
+    private ConfiguracionDispositivo? config;
+    private bool cargando = true;
+    private bool guardando = false;
+    private string? errorGeneral;
+    private string? mensajeExito;
+    private string? mensajeError;
+    private string? errorFormulario;
+    private Alarma formulario = NuevaAlarmaVacia();
+    private int? editandoId;
+    private Alarma? alarmaABorrar;
+
+    // Panel colapsable del formulario + hora amable (HH:mm) que se
+    // convierte al formato contractual HH:mm:ss al enviar.
+    private bool formularioVisible = false;
+    private string horaCorta = "08:00";
+    private string? errorHora;
+
+    // Preferencias solo-front: nombre del paciente y alias por dispositivo.
+    private string nombrePaciente = string.Empty;
+    private bool nombreGuardado = false;
+    private bool pacienteVisible = false;
+    private string aliasDispositivo = string.Empty;
+    private string aliasBorrador = string.Empty;
+
+    // Historial T5: lista acumulada, pagina actual y tamanio fijo de 20.
+    private List<Evento> eventos = new();
+    private int paginaEventos = 1;
+    private const int TamanioEventos = 20;
+    private bool cargandoEventos = false;
+    private bool hayMasEventos = true;
+    private string? errorEventos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Estado.Cambio += AlCambiarDispositivo;
+        nombrePaciente = await Prefs.ObtenerNombrePaciente() ?? string.Empty;
+        await Cargar();
+    }
+
+    private async void AlCambiarDispositivo()
+    {
+        await Cargar();
+        StateHasChanged();
+    }
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        errorGeneral = null;
+        try
+        {
+            config = await Api.ObtenerConfiguracion(Estado.DispositivoId);
+            aliasDispositivo = await Prefs.ObtenerAlias(Estado.DispositivoId) ?? string.Empty;
+            aliasBorrador = aliasDispositivo;
+            await CargarEventos(reiniciar: true);
+        }
+        catch (ExcepcionApi ex)
+        {
+            errorGeneral = string.Join(" ", ex.Mensajes);
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    // Trae una pagina de eventos y la agrega a la lista.
+    // Con reiniciar se empieza de cero (cambio de dispositivo o reintento).
+    private async Task CargarEventos(bool reiniciar)
+    {
+        if (reiniciar)
+        {
+            paginaEventos = 1;
+            eventos = new();
+            hayMasEventos = true;
+        }
+
+        cargandoEventos = true;
+        errorEventos = null;
+        try
+        {
+            var pagina = await Api.ListarEventos(Estado.DispositivoId, paginaEventos, TamanioEventos);
+            eventos.AddRange(pagina);
+            // Si vino menos de lo pedido, no quedan mas paginas.
+            hayMasEventos = pagina.Count == TamanioEventos;
+        }
+        catch (ExcepcionApi ex)
+        {
+            errorEventos = string.Join(" ", ex.Mensajes);
+        }
+        finally
+        {
+            cargandoEventos = false;
+        }
+    }
+
+    private async Task CargarMasEventos()
+    {
+        paginaEventos++;
+        await CargarEventos(reiniciar: false);
+    }
+
+    private async Task ReintentarEventos()
+    {
+        await CargarEventos(reiniciar: true);
+    }
+
+    // Muestra la fecha ISO del servidor en formato local simple.
+    private static string FormatearFecha(string fechaHora)
+    {
+        if (DateTime.TryParse(fechaHora, out var fecha))
+        {
+            return fecha.ToString("dd/MM/yyyy HH:mm");
+        }
+
+        return fechaHora;
+    }
+
+    private static Alarma NuevaAlarmaVacia() => new() { diaSemana = 1, numeroAlarma = 1, hora = "08:00:00" };
+
+    private List<Alarma> AlarmasOrdenadas() =>
+        config?.alarmas.OrderBy(a => a.diaSemana).ThenBy(a => a.numeroAlarma).ToList() ?? new();
+
+    // Proxima alarma semanal: la mas cercana desde hoy y la hora actual.
+    // Convencion del backend: dia 1 = lunes, 7 = domingo.
+    // DayOfWeek trae domingo = 0, por eso se convierte con ((int) + 6) % 7 + 1.
+    private Alarma? ProximaAlarma()
+    {
+        if (config is null || config.alarmas.Count == 0)
+        {
+            return null;
+        }
+
+        var hoy = ((int)DateTime.Today.DayOfWeek + 6) % 7 + 1;
+        var ahora = DateTime.Now.TimeOfDay;
+        return config.alarmas
+            .OrderBy(a =>
+            {
+                var distancia = (a.diaSemana - hoy + 7) % 7;
+                // Si es hoy pero su hora ya paso, corresponde a la semana proxima.
+                if (distancia == 0
+                    && TimeSpan.TryParse(a.hora, out var hora)
+                    && hora <= ahora)
+                {
+                    distancia = 7;
+                }
+
+                return distancia;
+            })
+            .ThenBy(a => a.hora)
+            .First();
+    }
+
+    // Nombre del dia 1 = lunes .. 7 = domingo (contrato del backend).
+    private static string NombreDia(int dia) => dia switch
+    {
+        1 => "Lunes",
+        2 => "Martes",
+        3 => "Miercoles",
+        4 => "Jueves",
+        5 => "Viernes",
+        6 => "Sabado",
+        7 => "Domingo",
+        _ => $"Dia {dia}",
+    };
+
+    // Nombre del paciente solo-front: se guarda en localStorage.
+    private async Task GuardarNombrePaciente()
+    {
+        nombrePaciente = nombrePaciente.Trim();
+        await Prefs.GuardarNombrePaciente(nombrePaciente);
+        nombreGuardado = true;
+    }
+
+    private void AlternarPaciente()
+    {
+        pacienteVisible = !pacienteVisible;
+    }
+
+    // Alias solo-front por dispositivoId: cambia lo que se muestra,
+    // sin llamar al PUT del backend. Avisa para que el selector
+    // relea el alias en sus opciones.
+    private async Task GuardarAlias()
+    {
+        aliasDispositivo = aliasBorrador.Trim();
+        aliasBorrador = aliasDispositivo;
+        await Prefs.GuardarAlias(Estado.DispositivoId, aliasDispositivo);
+        Estado.Notificar();
+    }
+
+    private async Task QuitarAlias()
+    {
+        aliasDispositivo = string.Empty;
+        aliasBorrador = string.Empty;
+        await Prefs.GuardarAlias(Estado.DispositivoId, string.Empty);
+        Estado.Notificar();
+    }
+
+    private string NombreVisibleDispositivo()
+    {
+        if (config is null)
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(aliasDispositivo) ? config.nombre : aliasDispositivo.Trim();
+    }
+
+    // El nombre real del backend se muestra como secundario si difiere.
+    private bool AliasDifiere() =>
+        config is not null
+        && !string.IsNullOrWhiteSpace(aliasDispositivo)
+        && aliasDispositivo.Trim() != config.nombre;
+
+    private void AlCambiarHora(ChangeEventArgs e)
+    {
+        horaCorta = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void AlternarFormulario()
+    {
+        formularioVisible = !formularioVisible;
+        if (!formularioVisible)
+        {
+            CancelarEdicion();
+        }
+    }
+
+    private void EmpezarEdicion(Alarma alarma)
+    {
+        editandoId = alarma.alarmaId;
+        alarmaABorrar = null;
+        mensajeExito = null;
+        mensajeError = null;
+        errorFormulario = null;
+        errorHora = null;
+        formularioVisible = true;
+        formulario = new Alarma
+        {
+            diaSemana = alarma.diaSemana,
+            numeroAlarma = alarma.numeroAlarma,
+            hora = alarma.hora,
+        };
+        horaCorta = alarma.hora.Length >= 5 ? alarma.hora.Substring(0, 5) : "08:00";
+    }
+
+    private void CancelarEdicion()
+    {
+        editandoId = null;
+        errorFormulario = null;
+        errorHora = null;
+        formularioVisible = false;
+        formulario = NuevaAlarmaVacia();
+        horaCorta = "08:00";
+    }
+
+    private void PedirConfirmacion(Alarma alarma)
+    {
+        alarmaABorrar = alarma;
+        mensajeExito = null;
+        mensajeError = null;
+    }
+
+    private void CancelarBorrado()
+    {
+        alarmaABorrar = null;
+    }
+
+    // Guarda con validacion client-side previa: rango valido y sin
+    // duplicar dia y numero, para evitar el 400 y el 409 del servidor.
+    private async Task Guardar()
+    {
+        mensajeExito = null;
+        mensajeError = null;
+        errorFormulario = null;
+
+        if (config is null)
+        {
+            return;
+        }
+
+        // Convierte la hora amable (HH:mm) al formato contractual HH:mm:ss.
+        errorHora = null;
+        if (string.IsNullOrWhiteSpace(horaCorta))
+        {
+            errorHora = "La hora es obligatoria.";
+            return;
+        }
+
+        var horaNormalizada = horaCorta.Trim();
+        if (horaNormalizada.Length == 5)
+        {
+            horaNormalizada += ":00";
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(
+                horaNormalizada, @"^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$"))
+        {
+            errorHora = "La hora debe tener un formato valido (HH:mm).";
+            return;
+        }
+
+        formulario.hora = horaNormalizada;
+
+        var duplicada = config.alarmas.Any(a =>
+            a.diaSemana == formulario.diaSemana
+            && a.numeroAlarma == formulario.numeroAlarma
+            && a.alarmaId != editandoId);
+        if (duplicada)
+        {
+            errorFormulario = $"Ya existe la alarma {formulario.numeroAlarma} para el {NombreDia(formulario.diaSemana).ToLower()}. Elija otro dia o numero.";
+            return;
+        }
+
+        guardando = true;
+        try
+        {
+            if (editandoId is int id)
+            {
+                await Api.ActualizarAlarma(Estado.DispositivoId, id, formulario);
+                mensajeExito = "Alarma actualizada correctamente.";
+                CancelarEdicion();
+            }
+            else
+            {
+                await Api.CrearAlarma(Estado.DispositivoId, formulario);
+                mensajeExito = "Alarma creada correctamente.";
+                errorFormulario = null;
+                errorHora = null;
+                formulario = NuevaAlarmaVacia();
+                horaCorta = "08:00";
+            }
+
+            await Cargar();
+        }
+        catch (ExcepcionApi ex) when (ex.Codigo == 409)
+        {
+            errorFormulario = "Esa combinacion de dia y numero ya esta ocupada. " + string.Join(" ", ex.Mensajes);
+        }
+        catch (ExcepcionApi ex)
+        {
+            errorFormulario = string.Join(" ", ex.Mensajes);
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private async Task ConfirmarBorrado()
+    {
+        if (alarmaABorrar is null)
+        {
+            return;
+        }
+
+        mensajeExito = null;
+        mensajeError = null;
+        try
+        {
+            await Api.EliminarAlarma(Estado.DispositivoId, alarmaABorrar.alarmaId);
+            mensajeExito = "Alarma borrada correctamente.";
+            alarmaABorrar = null;
+            await Cargar();
+        }
+        catch (ExcepcionApi ex) when (ex.Codigo == 409)
+        {
+            // El servidor protege las alarmas con eventos registrados.
+            mensajeError = "No se puede borrar esta alarma porque ya tiene eventos registrados. " + string.Join(" ", ex.Mensajes);
+            alarmaABorrar = null;
+        }
+        catch (ExcepcionApi ex)
+        {
+            mensajeError = string.Join(" ", ex.Mensajes);
+            alarmaABorrar = null;
+        }
+    }
+
+    public void Dispose()
+    {
+        Estado.Cambio -= AlCambiarDispositivo;
+    }
+}

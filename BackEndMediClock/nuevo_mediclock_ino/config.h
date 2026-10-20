@@ -55,8 +55,8 @@
 
 // ------------------------------------------------------------------- Red
 // SOLO MARCADORES — nunca guardar claves reales (ver política del repo).
-#define WIFI_SSID          "CPE-MODUHO"
-#define WIFI_PASSWORD      "94e8c5384312"
+#define WIFI_SSID          "TCL 30 SE"
+#define WIFI_PASSWORD      "franbascal"
 #define BACKEND_URL        "https://mediclockbackend.runasp.net/api/dispositivos/1"
 #define BACKEND_ALARMS_PATH "/alarmas"
 #define BACKEND_EVENT_PATH  "/eventos"

@@ -563,7 +563,8 @@ void atenderWiFi() {
       return;  // aún no es su turno; el resto sigue funcionando
     }
     ultimoReintentoWiFims = ahora;
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);  // no bloquea: vuelve de inmediato
+    WiFi.disconnect();                      // sale del estado "conectando"
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);  // reintento limpio, no bloquea
     Serial.println(F("[mediclock] WiFi conectando..."));
     return;  // GET/POST recién cuando haya conexión, en próximos turnos
   }
@@ -818,6 +819,7 @@ void setup() {
   // atenderWiFi() llama a WiFi.begin() en su turno con reintentos cada
   // WIFI_RETRY_INTERVAL_MS; sin red el equipo sigue con NVS + RTC.
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
 
   pinMode(LED_TEST, OUTPUT);
   digitalWrite(LED_TEST, LOW);
