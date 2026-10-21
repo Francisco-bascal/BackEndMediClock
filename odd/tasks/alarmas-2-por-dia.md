@@ -55,9 +55,11 @@ desde la web devuelve 400 hoy, y el firmware reserva una celda por día que ya n
       `7671ef5`: clave `alarm_ver` (UChar) = 2, borra `a{d}s2{h,m,e}` y siembra lo faltante sin
       pisar horarios existentes. Idempotente.
 - [x] **T4 — Firmware: pasos por compartimiento.** Depende de la definición física del usuario.
-      Ruta: delegada (misma pasada que T2/T3). Hecho en `6938907`: `indiceCompartimiento()` con
-      `((dia + 6) % 7) * 2 + slot`, `PASOS_POR_COMPARTIMIENTO = 146`, se elimina
-      `DISPENSAR_PASOS`, homing con margen (2560) y dispensado forzado secuencial de 14 pasos.
+      Ruta: delegada (misma pasada que T2/T3). Hecho en `6938907` y ajustado después: `indiceCompartimiento()`
+      con `((dia + 6) % 7) * 2 + slot`, `PASOS_POR_COMPARTIMIENTO = 146`,
+      `PASOS_ORIGEN_COMPARTIMIENTO = 73` (media ranura: el reed marca el borde del compartimiento 0,
+      no su centro), se elimina `DISPENSAR_PASOS`, homing con margen (2560) y dispensado forzado
+      secuencial de 14 pasos. Destino = `73 + índice * 146` (lunes 1 = 73 … domingo 2 = 1971).
       Verificación: harness host sobre las 14 combinaciones; sin compilación ESP32 en este host.
 
 ## Decisión de producto registrada
@@ -74,8 +76,8 @@ desde la web devuelve 400 hoy, y el firmware reserva una celda por día que ya n
 1. El front no permite ni muestra números de alarma fuera de 1-2.
 2. El firmware no lee, escribe ni dispara el slot 2 (tercera alarma).
 3. Una placa con NVS vieja queda con 14 celdas útiles y sin residuos `s2` activos.
-4. La distancia al compartimiento sale de `índice * PASOS_POR_COMPARTIMIENTO` desde el origen,
-   con `146` medido en banco y documentado como derivado de `2048 / 14`.
+4. La distancia al compartimiento sale de `73 + índice * 146` desde el origen, con `146` medido en
+   banco (derivado de `2048 / 14`) y `73` como media ranura hasta el centro del compartimiento 0.
 5. Backend intacto: sigue aceptando 1-2 por día.
 
 ## Checks

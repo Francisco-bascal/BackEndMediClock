@@ -663,9 +663,11 @@ void iniciarCicloDosis() {
   estadoDispensador = DISP_HOMING;
   pasosHomingDados = 0;
   pasosDosisRestantes = 0;
-  // Destino medido desde el origen del reed: índice de compartimiento * paso.
+  // Destino medido desde el origen del reed: media ranura hasta el centro del
+  // compartimiento 0, más un paso de ranura por cada compartimiento.
   uint8_t indice = indiceCompartimiento(alarmaPendiente.dia, alarmaPendiente.slot);
-  pasosObjetivoDosis = (long)indice * PASOS_POR_COMPARTIMIENTO;
+  pasosObjetivoDosis = PASOS_ORIGEN_COMPARTIMIENTO +
+                       (long)indice * PASOS_POR_COMPARTIMIENTO;
   ultimoPasoMotorms = millis();
   buzzerEncendido = true;
   ultimoCambioBuzzerms = millis();
@@ -673,9 +675,8 @@ void iniciarCicloDosis() {
   digitalWrite(PIN_LED, HIGH);
   ledTestHastaMs = millis() + 5000;
   Serial.println(F("[mediclock] dispensa: homing con reed"));
-  Serial.printf("[mediclock] compartimiento %u, %ld pasos%s\n",
-                indice, pasosObjetivoDosis,
-                indice == 0 ? " (origen, sin giro)" : "");
+  Serial.printf("[mediclock] compartimiento %u, %ld pasos\n",
+                indice, pasosObjetivoDosis);
 }
 
 // Cierra la entrega: apaga buzzer/LED, muestra "Dosis entregada" 1 s,
@@ -725,11 +726,6 @@ void avanzarMotorSiToca() {
       estadoDispensador = DISP_DOSIS;
       pasosDosisRestantes = pasosObjetivoDosis;
       Serial.println(F("[mediclock] origen con reed, gira dosis"));
-      // Destino = origen (lunes 1): no hay giro que hacer.
-      if (pasosObjetivoDosis <= 0) {
-        Serial.println(F("[mediclock] dosis en el origen, sin giro"));
-        finalizarDosis();
-      }
       return;
     }
     if (pasosHomingDados >= HOMING_MAX_PASOS) {
@@ -738,11 +734,6 @@ void avanzarMotorSiToca() {
       Serial.println(F("[mediclock] reed sin marcar, dispensa igual"));
       estadoDispensador = DISP_DOSIS;
       pasosDosisRestantes = pasosObjetivoDosis;
-      // Destino = origen (lunes 1): sin giro, se cierra igual para no trabar.
-      if (pasosObjetivoDosis <= 0) {
-        Serial.println(F("[mediclock] dosis en el origen, sin giro"));
-        finalizarDosis();
-      }
       return;
     }
     stepper.step(STEPPER_PASOS_POR_TURNO);
@@ -945,7 +936,8 @@ void loop() {
     alarmaPendiente.esManual = true;
     // Demo secuencial: cada pulsación simula la próxima alarma de la semana,
     // avanzando un compartimiento más desde el origen y volviendo a empezar
-    // después de domingo 2. El primer disparo (índice 0) no gira el motor.
+    // después de domingo 2. La primera pulsación (índice 0) también gira:
+    // media ranura hasta el centro del compartimiento de lunes 1.
     uint8_t diaSimulado = (uint8_t)((indiceDemostracion / 2 + 1) % 7);
     uint8_t slotSimulado = (uint8_t)(indiceDemostracion % 2);
     alarmaPendiente.dia = diaSimulado;

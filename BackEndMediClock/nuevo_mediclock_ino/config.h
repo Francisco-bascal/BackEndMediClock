@@ -86,14 +86,18 @@
 // --------------------------------------------------- T5: actuadores
 // El carrusel tiene 14 compartimientos iguales (7 días x 2 alarmas). Antes de
 // cada dosis el equipo hace homing al reed y desde ahí avanza
-// índice * PASOS_POR_COMPARTIMIENTO (ver indiceCompartimiento()).
+// PASOS_ORIGEN_COMPARTIMIENTO + índice * PASOS_POR_COMPARTIMIENTO
+// (ver indiceCompartimiento()).
 #define COMPARTIMIENTOS_POR_VUELTA 14  // total físico: 7 días x 2 alarmas
 // Paso medido en banco: STEPPER_STEPS_PER_REV / COMPARTIMIENTOS_POR_VUELTA
 // redondeado hacia abajo (2048 / 14 = 146,28). Decisión del dueño: la vuelta
 // completa suma 14 * 146 = 2044, ~4 pasos menos que la revolución (margen ~5).
-// El último compartimiento (domingo 2) queda en 13 * 146 = 1898. Como cada
-// dosis vuelve al reed, el redondeo no se acumula entre disparos.
+// Como cada dosis vuelve al reed, el redondeo no se acumula entre disparos.
 #define PASOS_POR_COMPARTIMIENTO 146
+// El reed marca el borde del compartimiento 0 ("lunes 1"), no su centro: media
+// ranura separa el origen del centro. Por eso la cuenta arranca en 73 (146/2):
+// lunes 1 = 73, lunes 2 = 219, ..., domingo 2 = 73 + 13 * 146 = 1971.
+#define PASOS_ORIGEN_COMPARTIMIENTO 73
 #define STEPPER_PASOS_POR_TURNO 8      // T5: pasos cortos por turno, sin bloquear
 #define STEPPER_INTERVALO_MS    10     // T5: pausa entre turnos del motor
 // Tope de homing: una vuelta completa (2048) más margen, para que no aborte
