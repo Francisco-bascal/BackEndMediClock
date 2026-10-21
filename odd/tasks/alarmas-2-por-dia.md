@@ -65,6 +65,9 @@ desde la web devuelve 400 hoy, y el firmware reserva una celda por día que ya n
 - El forzado es **demostración**: cada pulsación simula la próxima alarma de la semana, avanza un
   compartimiento más desde el origen y vuelve a empezar después de domingo 2 (índice en RAM, se
   reinicia al arrancar). La primera pulsación cae en el origen y no gira.
+- **Falla de reed (decisión del usuario, 2026-10-21):** si el homing no encuentra el origen dentro
+  de `HOMING_MAX_PASOS`, se dispensa igual para no trabar el equipo. Se acepta el riesgo de
+  entregar desde una posición desconocida; queda como mejora futura abortar y reintentar.
 
 ## Criterios de aceptación
 
