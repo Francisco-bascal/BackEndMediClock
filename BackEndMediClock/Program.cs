@@ -41,13 +41,13 @@ builder.Services.AddScoped<DispositivoService>();
 builder.Services.AddScoped<AlarmaService>();
 builder.Services.AddScoped<EventoService>();
 builder.Services.AddSingleton<ConexionDispositivoManager>();
+builder.Services.AddHttpClient<GeminiChatService>();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI();
-
 
 app.UseCors("Frontend");
 
@@ -125,8 +125,8 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<MediClockDbContext>();
     db.Database.Migrate();
-  }
+}
 
-  app.MapFallbackToFile("index.html");
+app.MapFallbackToFile("index.html");
 
-  app.Run();
+app.Run();

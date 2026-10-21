@@ -1,4 +1,4 @@
-﻿using BackEndMediClock.Models;
+using BackEndMediClock.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace BackEndMediClock.Data
@@ -46,7 +46,7 @@ namespace BackEndMediClock.Data
                 e.HasOne(ev => ev.Alarma)
                 .WithMany(a => a.Eventos)
                 .HasForeignKey(ev => ev.AlarmaId)
-                .OnDelete(DeleteBehavior.Restrict)
+                .OnDelete(DeleteBehavior.SetNull)
             );
         }
     }

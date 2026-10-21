@@ -1,0 +1,254 @@
+@using FrontEndMediClock.Modelos
+@using FrontEndMediClock.Servicios
+@inject ApiMediClock Api
+
+@if (esFlotante)
+{
+    @* Botón flotante en la esquina inferior derecha *@
+    <button class="mc-chat-flotante-boton" @onclick="AlternarFlotante">
+        <span>🤖</span>
+        <span>@(ventanaAbierta ? "Cerrar Asistente" : "Asistente IA")</span>
+    </button>
+
+    @if (ventanaAbierta)
+    {
+        <div class="mc-chat-flotante-ventana">
+            @RenderContenidoChat()
+        </div>
+    }
+}
+else
+{
+    @* Sección incrustada en la página principal *@
+    <div class="mc-chat-seccion">
+        @RenderContenidoChat()
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int DispositivoId { get; set; }
+
+    [Parameter]
+    public bool ModoFlotante { get; set; } = false;
+
+    [Parameter]
+    public EventCallback OnAccionRealizada { get; set; }
+
+    private bool esFlotante = false;
+    private bool ventanaAbierta = true;
+    private bool colapsado = false;
+    private bool enviando = false;
+    private string mensajeEntrada = string.Empty;
+    private string? errorChat = null;
+
+    private List<MensajeChat> mensajes = new()
+    {
+        new MensajeChat
+        {
+            Rol = "model",
+            Contenido = "¡Hola! Soy MediClock Bot 🤖. Puedo ayudarte a configurar tus alarmas de medicación, forzar una dispensación o responder dudas sobre el funcionamiento de tu pastillero helicoidal. ¿En qué puedo ayudarte?",
+            FechaHora = DateTime.Now
+        }
+    };
+
+    protected override void OnInitialized()
+    {
+        esFlotante = ModoFlotante;
+    }
+
+    private void AlternarFlotante()
+    {
+        ventanaAbierta = !ventanaAbierta;
+    }
+
+    private void AlternarColapsado()
+    {
+        colapsado = !colapsado;
+    }
+
+    private void CambiarModoVista()
+    {
+        esFlotante = !esFlotante;
+        ventanaAbierta = true;
+        colapsado = false;
+    }
+
+    private async Task EnviarMensaje()
+    {
+        if (string.IsNullOrWhiteSpace(mensajeEntrada) || enviando)
+        {
+            return;
+        }
+
+        var texto = mensajeEntrada.Trim();
+        mensajeEntrada = string.Empty;
+        errorChat = null;
+
+        mensajes.Add(new MensajeChat
+        {
+            Rol = "user",
+            Contenido = texto,
+            FechaHora = DateTime.Now
+        });
+
+        enviando = true;
+        StateHasChanged();
+
+        try
+        {
+            var solicitud = new SolicitudChat
+            {
+                DispositivoId = DispositivoId > 0 ? DispositivoId : 1,
+                Mensaje = texto,
+                Historial = mensajes.Take(mensajes.Count - 1).ToList()
+            };
+
+            var respuesta = await Api.EnviarMensajeChat(solicitud);
+
+            mensajes.Add(new MensajeChat
+            {
+                Rol = "model",
+                Contenido = string.IsNullOrWhiteSpace(respuesta.Respuesta) 
+                    ? "Operación realizada con éxito en el pastillero." 
+                    : respuesta.Respuesta,
+                FechaHora = DateTime.Now
+            });
+
+            enviando = false;
+            StateHasChanged();
+
+            if (respuesta.AccionEjecutada)
+            {
+                await OnAccionRealizada.InvokeAsync();
+            }
+        }
+        catch (ExcepcionApi ex)
+        {
+            errorChat = string.Join(" ", ex.Mensajes);
+        }
+        catch (Exception ex)
+        {
+            errorChat = $"Error al procesar la solicitud: {ex.Message}";
+        }
+        finally
+        {
+            enviando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnviarSugerencia(string texto)
+    {
+        mensajeEntrada = texto;
+        await EnviarMensaje();
+    }
+
+    private async Task ManejarTecla(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await EnviarMensaje();
+        }
+    }
+
+    private RenderFragment RenderContenidoChat() => __builder =>
+    {
+        <div class="mc-chat-tarjeta">
+            <div class="mc-chat-encabezado">
+                <div class="mc-chat-titulo">
+                    <span class="mc-chat-punto-online" title="Asistente activo"></span>
+                    <span>Asistente MediClock (Gemini IA)</span>
+                </div>
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <button class="mc-boton mc-boton-secundario"
+                            style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3);"
+                            @onclick="CambiarModoVista"
+                            title="@(esFlotante ? "Anclar chat a la página" : "Flotar chat en la esquina")">
+                        @(esFlotante ? "↙ Anclar" : "↗ Flotar")
+                    </button>
+                    @if (!esFlotante)
+                    {
+                        <button class="mc-boton mc-boton-secundario"
+                                style="padding: 0.2rem 0.6rem; font-size: 0.75rem; background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3);"
+                                @onclick="AlternarColapsado">
+                            @(colapsado ? "Mostrar" : "Ocultar")
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="mc-boton mc-boton-secundario"
+                                style="padding: 0.2rem 0.4rem; font-size: 0.8rem; background: transparent; color: #fff; border: none;"
+                                @onclick="AlternarFlotante">
+                            ✕
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (!colapsado || esFlotante)
+            {
+                <div class="mc-chat-mensajes">
+                    @foreach (var msg in mensajes)
+                    {
+                        var esUsuario = msg.Rol == "user";
+                        <div class="mc-chat-fila-msg @(esUsuario ? "mc-chat-fila-usuario" : "mc-chat-fila-asistente")">
+                            <div class="mc-chat-burbuja @(esUsuario ? "mc-chat-burbuja-usuario" : "mc-chat-burbuja-asistente")">
+                                @msg.Contenido
+                            </div>
+                            <span class="mc-chat-hora">@msg.FechaHora.ToString("HH:mm")</span>
+                        </div>
+                    }
+
+                    @if (enviando)
+                    {
+                        <div class="mc-chat-fila-msg mc-chat-fila-asistente">
+                            <div class="mc-chat-burbuja mc-chat-burbuja-asistente mc-chat-escribiendo">
+                                <span>Procesando con Gemini...</span>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(errorChat))
+                    {
+                        <div class="mc-error" style="font-size: 0.82rem; margin: 0.5rem 0;">
+                            @errorChat
+                        </div>
+                    }
+                </div>
+
+                <div class="mc-chat-sugerencias">
+                    <button type="button" class="mc-chat-chip" @onclick="@(() => EnviarSugerencia("¿Cómo funciona el pastillero helicoidal?"))">
+                        ⚙️ ¿Cómo funciona?
+                    </button>
+                    <button type="button" class="mc-chat-chip" @onclick="@(() => EnviarSugerencia("¿Qué alarmas tengo configuradas?"))">
+                        📋 Listar alarmas
+                    </button>
+                    <button type="button" class="mc-chat-chip" @onclick="@(() => EnviarSugerencia("Configurame una alarma los lunes a las 08:30"))">
+                        ⏰ Crear alarma
+                    </button>
+                    <button type="button" class="mc-chat-chip" @onclick="@(() => EnviarSugerencia("Dispensar una dosis ahora"))">
+                        💊 Dispensar ahora
+                    </button>
+                </div>
+
+                <div class="mc-chat-form">
+                    <input type="text"
+                           class="mc-chat-input"
+                           placeholder="Pregúntale a MediClock o pídele una alarma..."
+                           @bind="mensajeEntrada"
+                           @bind:event="oninput"
+                           @onkeydown="ManejarTecla"
+                           disabled="@enviando" />
+
+                    <button class="mc-boton mc-boton-primario"
+                            style="padding: 0.5rem 1rem;"
+                            @onclick="EnviarMensaje"
+                            disabled="@(enviando || string.IsNullOrWhiteSpace(mensajeEntrada))">
+                        Enviar
+                    </button>
+                </div>
+            }
+        </div>
+    };
+}

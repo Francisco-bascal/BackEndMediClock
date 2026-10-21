@@ -165,12 +165,10 @@ namespace BackEndMediClock.Services
                 return Resultado.NoEncontrado($"No existe una alarma con el id {alarmaId} para el dispositivo {dispositivoId}.");
             }
 
-            var tieneEventos = await _context.Eventos.AnyAsync(e => e.AlarmaId == alarmaId, cancellationToken);
-
-            if (tieneEventos)
-            {
-                return Resultado.Conflicto($"La alarma {alarmaId} tiene eventos asociados y no puede eliminarse.");
-            }
+            // Desvincular eventos históricos asociados para preservar el historial de eventos sin bloquear el borrado
+            await _context.Eventos
+                .Where(e => e.AlarmaId == alarmaId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.AlarmaId, (int?)null), cancellationToken);
 
             _context.Alarmas.Remove(alarma);
             await _context.SaveChangesAsync(cancellationToken);

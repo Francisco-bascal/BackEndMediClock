@@ -98,6 +98,16 @@ public class ApiMediClock
         return await respuesta.Content.ReadFromJsonAsync<List<Evento>>() ?? new();
     }
 
+    // POST /api/chat
+    // Envía la solicitud al Asistente Virtual con IA (Gemini) para configurar alarmas o responder consultas.
+    public async Task<RespuestaChat> EnviarMensajeChat(SolicitudChat solicitud)
+    {
+        var respuesta = await _http.PostAsJsonAsync("api/chat", solicitud);
+        await ValidarRespuesta(respuesta, "No se pudo comunicar con el asistente virtual.");
+        return await respuesta.Content.ReadFromJsonAsync<RespuestaChat>()
+            ?? new RespuestaChat { Respuesta = "Sin respuesta del servidor." };
+    }
+
     // Lanza ExcepcionApi si el estado no es exitoso.
     // Intenta leer el string[] del backend; si no hay cuerpo, usa un mensaje
     // en español neutro segun el codigo (404/409/400).
@@ -154,13 +164,34 @@ public class ApiMediClock
                 }
             }
 
-            return textos;
+            if (textos.Count > 0)
+            {
+                return textos;
+            }
         }
         catch
         {
-            // Cuerpo vacio o no JSON (ej: 204 o error de red): sin mensajes.
-            return new();
+            // No era json de detalle de problema.
         }
+
+        try
+        {
+            var textoPlano = await respuesta.Content.ReadAsStringAsync();
+            if (!string.IsNullOrWhiteSpace(textoPlano))
+            {
+                var limpio = textoPlano.Trim().Trim('"').Replace("\\n", "\n").Replace("\\\"", "\"");
+                if (!string.IsNullOrWhiteSpace(limpio))
+                {
+                    return new List<string> { limpio };
+                }
+            }
+        }
+        catch
+        {
+            // Ignorar
+        }
+
+        return new();
     }
 
     private static string MensajePorDefecto(HttpStatusCode codigo, string mensajeGenerico) => codigo switch

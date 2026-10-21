@@ -236,3 +236,209 @@ body {
     border-radius: 8px;
     padding: 0.6rem 0.9rem;
 }
+
+/* Chatbot MediClock con IA Gemini */
+.mc-chat-seccion {
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.mc-chat-tarjeta {
+    background: #ffffff;
+    border: 1px solid #dbe5f1;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(15, 47, 91, 0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.mc-chat-encabezado {
+    background: linear-gradient(135deg, #0f2f5b 0%, #17427d 100%);
+    color: #ffffff;
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mc-chat-titulo {
+    font-weight: 600;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.mc-chat-punto-online {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #10b981;
+}
+
+.mc-chat-mensajes {
+    padding: 1rem;
+    max-height: 380px;
+    min-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: #f8fafc;
+}
+
+.mc-chat-fila-msg {
+    display: flex;
+    flex-direction: column;
+    max-width: 82%;
+}
+
+.mc-chat-fila-usuario {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.mc-chat-fila-asistente {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.mc-chat-burbuja {
+    padding: 0.65rem 0.9rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.mc-chat-burbuja-usuario {
+    background: #0f2f5b;
+    color: #ffffff;
+    border-bottom-right-radius: 2px;
+}
+
+.mc-chat-burbuja-asistente {
+    background: #ffffff;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    border-bottom-left-radius: 2px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.mc-chat-hora {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-top: 0.25rem;
+    padding: 0 0.25rem;
+}
+
+.mc-chat-badge-accion {
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.mc-chat-sugerencias {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    background: #f1f5f9;
+    border-top: 1px solid #e2e8f0;
+}
+
+.mc-chat-chip {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.78rem;
+    color: #0f2f5b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mc-chat-chip:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+.mc-chat-form {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+}
+
+.mc-chat-input {
+    flex: 1;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.mc-chat-input:focus {
+    border-color: #29b6d1;
+    box-shadow: 0 0 0 2px rgba(41, 182, 209, 0.2);
+}
+
+.mc-chat-escribiendo {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-style: italic;
+    font-size: 0.82rem;
+    color: #64748b;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Modal flotante en esquina */
+.mc-chat-flotante-boton {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 1000;
+    background: linear-gradient(135deg, #0f2f5b 0%, #29b6d1 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 50px;
+    padding: 0.75rem 1.25rem;
+    box-shadow: 0 4px 15px rgba(15, 47, 91, 0.3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.mc-chat-flotante-boton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 47, 91, 0.4);
+}
+
+.mc-chat-flotante-ventana {
+    position: fixed;
+    bottom: 5rem;
+    right: 1.5rem;
+    width: 380px;
+    max-width: calc(100vw - 3rem);
+    z-index: 1000;
+    box-shadow: 0 8px 24px rgba(15, 47, 91, 0.25);
+    border-radius: 12px;
+}
+

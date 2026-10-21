@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @using FrontEndMediClock.Componentes
 @using FrontEndMediClock.Modelos
 @using FrontEndMediClock.Servicios
@@ -101,6 +101,9 @@ else if (config is not null)
         </button>
         <span class="mc-detalle">Envia la orden de entrega de una dosis al dispositivo seleccionado.</span>
     </section>
+
+    @* Asistente virtual inteligente con IA Gemini para configurar alarmas por chat o consultas *@
+    <ChatBotMediClock DispositivoId="@Estado.DispositivoId" OnAccionRealizada="RefrescarSilencioso" />
 
     @if (mensajeExito is not null)
     {
@@ -318,6 +321,20 @@ else if (config is not null)
     private async void AlCambiarDispositivo()
     {
         await Cargar();
+        StateHasChanged();
+    }
+
+    private async Task RefrescarSilencioso()
+    {
+        try
+        {
+            config = await Api.ObtenerConfiguracion(Estado.DispositivoId);
+            await CargarEventos(reiniciar: true);
+        }
+        catch
+        {
+            // Ignorar errores en refresco silencioso
+        }
         StateHasChanged();
     }
 
@@ -678,12 +695,6 @@ else if (config is not null)
             mensajeExito = "Alarma borrada correctamente.";
             alarmaABorrar = null;
             await Cargar();
-        }
-        catch (ExcepcionApi ex) when (ex.Codigo == 409)
-        {
-            // El servidor protege las alarmas con eventos registrados.
-            mensajeError = "No se puede borrar esta alarma porque ya tiene eventos registrados. " + string.Join(" ", ex.Mensajes);
-            alarmaABorrar = null;
         }
         catch (ExcepcionApi ex)
         {
