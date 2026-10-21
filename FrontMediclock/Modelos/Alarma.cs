@@ -13,8 +13,8 @@ public class Alarma
     [Range(1, 7, ErrorMessage = "El dia de semana debe estar entre 1 y 7.")]
     public int diaSemana { get; set; }
 
-    // Numero de alarma dentro del dia: 1-3.
-    [Range(1, 3, ErrorMessage = "El numero de alarma debe estar entre 1 y 3.")]
+    // Numero de alarma dentro del dia: 1-2 (dos alarmas por dia, 14 compartimientos).
+    [Range(1, 2, ErrorMessage = "El numero de alarma debe estar entre 1 y 2.")]
     public int numeroAlarma { get; set; }
 
     // Formato contractual "HH:mm:ss" (ej: "08:00:00").
