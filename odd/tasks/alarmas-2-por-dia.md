@@ -33,10 +33,11 @@ desde la web devuelve 400 hoy, y el firmware reserva una celda por día que ya n
   revisión de contrato, no compilación. La compilación queda del lado del usuario.
 - TDD: no hay runner ni proyecto de tests en el repo. Modo efectivo: **off** por ausencia de
   runner; verificación funcional = build del usuario + revisión estructural.
-- El firmware **no modela compartimientos**: cada dosis hace homing al reed y avanza
-  `DISPENSAR_PASOS`. La identidad `(día, slot)` nunca llega al motor.
-- `DISPENSAR_PASOS = 273` es un valor **calibrado a mano** (`config.h:88-89`), no derivado de
-  `2048 / N`. No se puede recalcular a ciegas.
+- El firmware **no modelaba compartimientos**: cada dosis hacía homing al reed y avanzaba
+  `DISPENSAR_PASOS` (273) sin importar la alarma. La identidad `(día, slot)` no llegaba al motor.
+  Corregido en T4: ahora el destino es `indiceCompartimiento(dia, slot) * 146` desde el origen.
+- `DISPENSAR_PASOS = 273` era un valor **calibrado a mano** (`config.h:88-89`), no derivado de
+  `2048 / N`, y no correspondía a ningún paso entre compartimientos. Eliminado en T4.
 
 ## Tareas
 
@@ -53,16 +54,25 @@ desde la web devuelve 400 hoy, y el firmware reserva una celda por día que ya n
       limpiar las celdas que ya no existen. Ruta: delegada (misma pasada que T2). Hecho en
       `7671ef5`: clave `alarm_ver` (UChar) = 2, borra `a{d}s2{h,m,e}` y siembra lo faltante sin
       pisar horarios existentes. Idempotente.
-- [ ] **T4 — Firmware: pasos por compartimiento.** Depende de la definición física del usuario.
-      Ruta: delegada (misma pasada que T2/T3).
+- [x] **T4 — Firmware: pasos por compartimiento.** Depende de la definición física del usuario.
+      Ruta: delegada (misma pasada que T2/T3). Hecho en `6938907`: `indiceCompartimiento()` con
+      `((dia + 6) % 7) * 2 + slot`, `PASOS_POR_COMPARTIMIENTO = 146`, se elimina
+      `DISPENSAR_PASOS`, homing con margen (2560) y dispensado forzado secuencial de 14 pasos.
+      Verificación: harness host sobre las 14 combinaciones; sin compilación ESP32 en este host.
+
+## Decisión de producto registrada
+
+- El forzado es **demostración**: cada pulsación simula la próxima alarma de la semana, avanza un
+  compartimiento más desde el origen y vuelve a empezar después de domingo 2 (índice en RAM, se
+  reinicia al arrancar). La primera pulsación cae en el origen y no gira.
 
 ## Criterios de aceptación
 
 1. El front no permite ni muestra números de alarma fuera de 1-2.
 2. El firmware no lee, escribe ni dispara el slot 2 (tercera alarma).
 3. Una placa con NVS vieja queda con 14 celdas útiles y sin residuos `s2` activos.
-4. `DISPENSAR_PASOS` corresponde al nuevo paso entre compartimientos y está documentado como
-   calibrado, no como fórmula.
+4. La distancia al compartimiento sale de `índice * PASOS_POR_COMPARTIMIENTO` desde el origen,
+   con `146` medido en banco y documentado como derivado de `2048 / 14`.
 5. Backend intacto: sigue aceptando 1-2 por día.
 
 ## Checks
