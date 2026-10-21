@@ -40,15 +40,19 @@ desde la web devuelve 400 hoy, y el firmware reserva una celda por día que ya n
 
 ## Tareas
 
-- [ ] **T1 — Frontend: límite 2.** `Modelos/Alarma.cs` (comentario + `Range(1,2)`),
+- [x] **T1 — Frontend: límite 2.** `Modelos/Alarma.cs` (comentario + `Range(1,2)`),
       `Pages/Home.razor` (texto "1 a 2" y `max="2"`). Ruta: inline (2 archivos, cambio mecánico).
-- [ ] **T2 — Firmware: esquema 7×2.** Comentarios `slot 0-2`, `yaDisparo[7][2]`, límites
+      Hecho en `4420b49`. Verificación: grep sin residuos de "1 a 3"/`max="3"`/`Range(1,3)`;
+      compilación pendiente del lado del usuario (no hay `dotnet` en este host).
+- [x] **T2 — Firmware: esquema 7×2.** Comentarios `slot 0-2`, `yaDisparo[7][2]`, límites
       `slot > 1` en las 3 validaciones, siembra `slot < 2`, scheduler `slot < 2`, textos de
       contrato `numeroAlarma 1-2`, LCD y evento. Ruta: delegada (1 archivo grande, muchas
-      ubicaciones acopladas).
-- [ ] **T3 — Firmware: migración de NVS.** `inicializarNVSsiVacio()` corta si existe `alarm_init`,
+      ubicaciones acopladas). Hecho en `7671ef5`.
+- [x] **T3 — Firmware: migración de NVS.** `inicializarNVSsiVacio()` corta si existe `alarm_init`,
       así que una placa ya usada conserva las celdas `s2` viejas. Agregar marca de versión y
-      limpiar las celdas que ya no existen. Ruta: delegada (misma pasada que T2).
+      limpiar las celdas que ya no existen. Ruta: delegada (misma pasada que T2). Hecho en
+      `7671ef5`: clave `alarm_ver` (UChar) = 2, borra `a{d}s2{h,m,e}` y siembra lo faltante sin
+      pisar horarios existentes. Idempotente.
 - [ ] **T4 — Firmware: pasos por compartimiento.** Depende de la definición física del usuario.
       Ruta: delegada (misma pasada que T2/T3).
 
