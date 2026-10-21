@@ -58,7 +58,7 @@ struct AvisoAlarma {
   bool activa = false;
   bool esManual = false;
   uint8_t dia = 0;     // 0 = domingo, igual que DayOfWeek del RTC
-  uint8_t slot = 0;    // 0..2
+  uint8_t slot = 0;    // 0..1
   uint8_t hora = 0;
   uint8_t minuto = 0;
 };
@@ -80,7 +80,7 @@ EventoPendiente eventoPendiente;
 
 // Marca ya-disparada en memoria: cada celda dispara una sola vez por día.
 // Se libera al cambiar de día (ver verificarAlarmas).
-bool yaDisparo[7][3] = {{false}};
+bool yaDisparo[7][2] = {{false}};
 uint16_t diaMarcaAnio = 0;
 uint8_t diaMarcaMes = 0;
 uint8_t diaMarcaDia = 0;
@@ -208,8 +208,9 @@ void mostrarReloj() {
 // Espacio NVS "mediclock" (ver prefs.begin en setup). Formato de claves:
 //   a{d}s{s}h : hora (0-23, UChar) · a{d}s{s}m : minuto (0-59, UChar)
 //   a{d}s{s}e : habilitada (bool). d = día 0-6 (0 = domingo, igual que
-//   DayOfWeek del RTC), s = slot 0-2. Ejemplo: "a3s1h" = hora del
+//   DayOfWeek del RTC), s = slot 0-1. Ejemplo: "a3s1h" = hora del
 //   miércoles, slot 1. Clave "alarm_init" (bool): marca de NVS ya iniciado.
+//   Clave "alarm_ver" (UChar): versión del esquema de alarmas.
 // Sin EEPROM: solo Preferences (NVS).
 
 // Arma la clave NVS de una celda ("a3s1h"). buf necesita al menos 7 letras.
@@ -220,7 +221,7 @@ void claveAlarma(uint8_t dia, uint8_t slot, char tipo, char* buf, size_t largo) 
 // Guarda una alarma con validación de rangos. Si algún dato está fuera
 // de rango devuelve false y no escribe nada.
 bool guardarAlarmaLocal(uint8_t dia, uint8_t slot, uint8_t hora, uint8_t minuto, bool habilitada) {
-  if (dia > 6 || slot > 2 || hora > 23 || minuto > 59) {
+  if (dia > 6 || slot > 1 || hora > 23 || minuto > 59) {
     return false;
   }
   char clave[8];
@@ -236,7 +237,7 @@ bool guardarAlarmaLocal(uint8_t dia, uint8_t slot, uint8_t hora, uint8_t minuto,
 // Lee una alarma. Devuelve false con día/slot fuera de rango.
 // Si la celda nunca se escribió, entrega 0:00 deshabilitada.
 bool leerAlarmaLocal(uint8_t dia, uint8_t slot, uint8_t &hora, uint8_t &minuto, bool &habilitada) {
-  if (dia > 6 || slot > 2) {
+  if (dia > 6 || slot > 1) {
     return false;
   }
   char clave[8];
@@ -249,18 +250,42 @@ bool leerAlarmaLocal(uint8_t dia, uint8_t slot, uint8_t &hora, uint8_t &minuto, 
   return true;
 }
 
-// Primer arranque: si NVS no tiene la marca, crea las 21 celdas
-// deshabilitadas (0:00, sin horarios inventados) y deja la marca.
+// Versión del esquema de alarmas en NVS = cantidad de slots por día.
+// El esquema viejo guardaba 3 slots por día; ahora son 2 (14 celdas).
+const uint8_t ESQUEMA_ALARMA_ACTUAL = 2;
+
+// Primer arranque o migración: deja las 14 celdas (7 días x 2 slots)
+// deshabilitadas (0:00, sin horarios inventados), borra las celdas del
+// slot 2 que dejó el esquema viejo y anota la versión. Idempotente: si la
+// versión guardada ya es la actual no toca nada.
 void inicializarNVSsiVacio() {
-  if (prefs.isKey("alarm_init")) {
+  if (prefs.getUChar("alarm_ver", 0) >= ESQUEMA_ALARMA_ACTUAL) {
     return;
   }
+  // Esquema viejo: el slot 2 (tercera alarma del día) ya no existe; sus
+  // celdas se borran para que no queden habilitadas y disparen.
+  char clave[8];
   for (uint8_t dia = 0; dia < 7; dia++) {
-    for (uint8_t slot = 0; slot < 3; slot++) {
+    claveAlarma(dia, 2, 'h', clave, sizeof(clave));
+    prefs.remove(clave);
+    claveAlarma(dia, 2, 'm', clave, sizeof(clave));
+    prefs.remove(clave);
+    claveAlarma(dia, 2, 'e', clave, sizeof(clave));
+    prefs.remove(clave);
+  }
+  // Crea las celdas que falten deshabilitadas; las que ya tienen valor
+  // guardado (slots 0 y 1 de un equipo viejo) no se pisan.
+  for (uint8_t dia = 0; dia < 7; dia++) {
+    for (uint8_t slot = 0; slot < ESQUEMA_ALARMA_ACTUAL; slot++) {
+      claveAlarma(dia, slot, 'h', clave, sizeof(clave));
+      if (prefs.isKey(clave)) {
+        continue;
+      }
       guardarAlarmaLocal(dia, slot, 0, 0, false);
     }
   }
-  prefs.putBool("alarm_init", true);
+  prefs.putBool("alarm_init", true);  // compatibilidad con el firmware viejo
+  prefs.putUChar("alarm_ver", ESQUEMA_ALARMA_ACTUAL);
 }
 
 // Muestra el aviso como hacía el original ("!ALARMA!").
@@ -278,7 +303,7 @@ void mostrarAlarmaEnLCD(uint8_t dia, uint8_t slot, uint8_t hora, uint8_t minuto)
   lcd.print(linea2);
 }
 
-// Revisa las 3 alarmas del día actual contra la ventana [hh:mm] del
+// Revisa las 2 alarmas del día actual contra la ventana [hh:mm] del
 // minuto en curso. Sin hora válida no dispara nada. Cada celda dispara
 // una sola vez por día (marca yaDisparo, liberada al cambiar de día);
 // dentro del minuto las pasadas repetidas del loop no re-disparan.
@@ -300,7 +325,7 @@ void verificarAlarmas() {
   uint8_t dia = tiempoCacheado.DayOfWeek() % 7;
   uint8_t hh = tiempoCacheado.Hour();
   uint8_t mm = tiempoCacheado.Minute();
-  for (uint8_t slot = 0; slot < 3; slot++) {
+  for (uint8_t slot = 0; slot < 2; slot++) {
     if (yaDisparo[dia][slot]) {
       continue;  // esta celda ya disparó hoy
     }
@@ -329,16 +354,16 @@ void verificarAlarmas() {
 
 // ------------------------------------------------- T4: WiFi + servidor
 // Contrato JSON esperado (el formato exacto del back vive en el front,
-// FrontMediclock/Modelos/Alarma.cs: lista de {diaSemana 1-7, numeroAlarma 1-3, hora "HH:mm:ss"}).
+// FrontMediclock/Modelos/Alarma.cs: lista de {diaSemana 1-7, numeroAlarma 1-2, hora "HH:mm:ss"}).
 //   GET BACKEND_URL + BACKEND_ALARMS_PATH -> 200 con lista JSON.
 //     Formato real del back (.NET): [
 //       {"alarmaId":2,"diaSemana":2,"numeroAlarma":1,"hora":"08:00:00"} ]
-//       diaSemana 1-7 (1 = lunes, 7 = domingo), numeroAlarma 1-3.
+//       diaSemana 1-7 (1 = lunes, 7 = domingo), numeroAlarma 1-2.
 //       Toda alarma listada se toma como habilitada (el back no trae flag).
 //       Conversión: dia = diaSemana % 7 (7 -> domingo 0), slot = numero - 1.
 //     Formato simple alternativo (mismo de la consigna T4): [
 //       {"dia":3,"slot":1,"hora":7,"minuto":30,"habilitada":1} ]
-//       dia 0-6 (0 = domingo, igual que DayOfWeek), slot 0-2,
+//       dia 0-6 (0 = domingo, igual que DayOfWeek), slot 0-1,
 //       hora 0-23, minuto 0-59, habilitada 0/1 (si falta, se asume 1).
 //   POST BACKEND_URL + BACKEND_EVENT_PATH con el modelo Evento del back:
 //     {"tipo":"DosisEntregada","descripcion":"Dosis entregada dia 3 turno 2",
@@ -423,7 +448,7 @@ void aplicarAlarmasDesdeJson(const String& cuerpo) {
       if (v < 0 || v > 6) { ignoradas++; continue; }
       dia = v;
     }
-    // Slot: formato back (1-3) o simple (0-2).
+    // Slot: formato back (1-2) o simple (0-1).
     if (extraerEnteroJson(obj, "numeroAlarma", v)) slot = v - 1;
     else if (extraerEnteroJson(obj, "slot", v)) slot = v;
     // Hora: número directo o texto "HH:mm:ss" del back.
@@ -445,7 +470,7 @@ void aplicarAlarmasDesdeJson(const String& cuerpo) {
     int e = 1;
     if (extraerEnteroJson(obj, "habilitada", v)) e = v;
     else if (extraerEnteroJson(obj, "e", v)) e = v;
-    if (dia < 0 || slot < 0 || slot > 2 || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+    if (dia < 0 || slot < 0 || slot > 1 || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
       ignoradas++;
       continue;
     }
@@ -869,7 +894,7 @@ void setup() {
 
   stepper.setSpeed(12);  // rpm; el giro real sigue por pasos no bloqueantes en T5
   prefs.begin("mediclock", false);
-  inicializarNVSsiVacio();  // T3: primer arranque deja las 21 celdas deshabilitadas
+  inicializarNVSsiVacio();  // T3: deja las 14 celdas deshabilitadas (migra el esquema viejo)
 
   Serial.println(F("[mediclock] setup done"));
 }
