@@ -288,6 +288,13 @@ void inicializarNVSsiVacio() {
   prefs.putUChar("alarm_ver", ESQUEMA_ALARMA_ACTUAL);
 }
 
+// Compartimiento físico (0..13) de una alarma, en orden lunes primero.
+// dia: 0 = domingo (igual que DayOfWeek del RTC); slot: 0..1.
+// lunes 1 -> 0, lunes 2 -> 1, martes 1 -> 2, ..., domingo 2 -> 13.
+uint8_t indiceCompartimiento(uint8_t dia, uint8_t slot) {
+  return (uint8_t)(((dia + 6) % 7) * 2 + slot);
+}
+
 // Muestra el aviso como hacía el original ("!ALARMA!").
 // No bloquea: solo escribe y vuelve; mostrarReloj() lo respeta
 // mientras alarmaPendiente siga activa (la consume T5).
@@ -600,8 +607,9 @@ void atenderWiFi() {
 // --------------------------- T5: actuadores (motor, buzzer, botones)
 // El dispensador avanza por pasos cortos sin bloquear: cada turno del loop
 // mueve solo STEPPER_PASOS_POR_TURNO pasos y vuelve. Estados:
-//   REPOSO -> HOMING (buscar origen con reed) -> DOSIS (giro de entrega)
-//   -> AVISO ("Dosis entregada" 1 s) -> REPOSO.
+//   REPOSO -> HOMING (buscar origen con reed) -> DOSIS (avance desde el
+//   origen hasta el compartimiento de la alarma) -> AVISO ("Dosis entregada"
+//   1 s) -> REPOSO.
 // El buzzer suena intermitente (500 ms on/off) con el LED a la par mientras
 // alarmaPendiente sigue activa. El botón de pánico confirma sin WiFi.
 enum EstadoDispensador {
@@ -613,6 +621,8 @@ enum EstadoDispensador {
 EstadoDispensador estadoDispensador = DISP_EN_REPOSO;
 long pasosHomingDados = 0;       // pasos girados buscando el origen
 long pasosDosisRestantes = 0;    // pasos que faltan de la dosis
+long pasosObjetivoDosis = 0;     // distancia al compartimiento destino, medida desde el origen del reed
+uint8_t indiceDemostracion = 0;  // compartimiento de la demo manual; se reinicia al arrancar
 unsigned long ultimoPasoMotorms = 0;     // último turno de pasos del motor
 unsigned long ultimoCambioBuzzerms = 0;  // último cambio on/off del buzzer
 bool buzzerEncendido = false;    // estado actual del patrón intermitente
@@ -653,6 +663,9 @@ void iniciarCicloDosis() {
   estadoDispensador = DISP_HOMING;
   pasosHomingDados = 0;
   pasosDosisRestantes = 0;
+  // Destino medido desde el origen del reed: índice de compartimiento * paso.
+  uint8_t indice = indiceCompartimiento(alarmaPendiente.dia, alarmaPendiente.slot);
+  pasosObjetivoDosis = (long)indice * PASOS_POR_COMPARTIMIENTO;
   ultimoPasoMotorms = millis();
   buzzerEncendido = true;
   ultimoCambioBuzzerms = millis();
@@ -660,6 +673,9 @@ void iniciarCicloDosis() {
   digitalWrite(PIN_LED, HIGH);
   ledTestHastaMs = millis() + 5000;
   Serial.println(F("[mediclock] dispensa: homing con reed"));
+  Serial.printf("[mediclock] compartimiento %u, %ld pasos%s\n",
+                indice, pasosObjetivoDosis,
+                indice == 0 ? " (origen, sin giro)" : "");
 }
 
 // Cierra la entrega: apaga buzzer/LED, muestra "Dosis entregada" 1 s,
@@ -707,8 +723,13 @@ void avanzarMotorSiToca() {
     // El reed cierra a GND (LOW) cuando el imán del aspa llega al origen.
     if (digitalRead(PIN_REED_SWITCH) == LOW) {
       estadoDispensador = DISP_DOSIS;
-      pasosDosisRestantes = DISPENSAR_PASOS;
+      pasosDosisRestantes = pasosObjetivoDosis;
       Serial.println(F("[mediclock] origen con reed, gira dosis"));
+      // Destino = origen (lunes 1): no hay giro que hacer.
+      if (pasosObjetivoDosis <= 0) {
+        Serial.println(F("[mediclock] dosis en el origen, sin giro"));
+        finalizarDosis();
+      }
       return;
     }
     if (pasosHomingDados >= HOMING_MAX_PASOS) {
@@ -716,7 +737,12 @@ void avanzarMotorSiToca() {
       // igual para no trabar el equipo y se avisa por Serial.
       Serial.println(F("[mediclock] reed sin marcar, dispensa igual"));
       estadoDispensador = DISP_DOSIS;
-      pasosDosisRestantes = DISPENSAR_PASOS;
+      pasosDosisRestantes = pasosObjetivoDosis;
+      // Destino = origen (lunes 1): sin giro, se cierra igual para no trabar.
+      if (pasosObjetivoDosis <= 0) {
+        Serial.println(F("[mediclock] dosis en el origen, sin giro"));
+        finalizarDosis();
+      }
       return;
     }
     stepper.step(STEPPER_PASOS_POR_TURNO);
@@ -917,10 +943,16 @@ void loop() {
     dispensarManualPendiente = false;
     alarmaPendiente.activa = true;
     alarmaPendiente.esManual = true;
-    alarmaPendiente.dia = horaValida ? (tiempoCacheado.DayOfWeek() % 7) : 0;
-    alarmaPendiente.slot = 0;
+    // Demo secuencial: cada pulsación simula la próxima alarma de la semana,
+    // avanzando un compartimiento más desde el origen y volviendo a empezar
+    // después de domingo 2. El primer disparo (índice 0) no gira el motor.
+    uint8_t diaSimulado = (uint8_t)((indiceDemostracion / 2 + 1) % 7);
+    uint8_t slotSimulado = (uint8_t)(indiceDemostracion % 2);
+    alarmaPendiente.dia = diaSimulado;
+    alarmaPendiente.slot = slotSimulado;
     alarmaPendiente.hora = horaValida ? tiempoCacheado.Hour() : 0;
     alarmaPendiente.minuto = horaValida ? tiempoCacheado.Minute() : 0;
+    indiceDemostracion = (indiceDemostracion + 1) % COMPARTIMIENTOS_POR_VUELTA;
     iniciarCicloDosis();
   }
   if (millis() < ledTestHastaMs) {

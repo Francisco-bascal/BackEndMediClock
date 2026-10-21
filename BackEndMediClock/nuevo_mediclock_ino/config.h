@@ -84,13 +84,21 @@
 #define HTTP_TIMEOUT_MS         5000   // T4: tope de espera de GET/POST, sin bloquear
 
 // --------------------------------------------------- T5: actuadores
-// Pasos de dosis: giro del 28BYJ-48 tras llegar al origen.
-// Valor inicial igual al firmware original (273 pasos).
-// SE CALIBRA con las aspas: ajustar hasta que caiga una sola dosis.
-#define DISPENSAR_PASOS         273
+// El carrusel tiene 14 compartimientos iguales (7 días x 2 alarmas). Antes de
+// cada dosis el equipo hace homing al reed y desde ahí avanza
+// índice * PASOS_POR_COMPARTIMIENTO (ver indiceCompartimiento()).
+#define COMPARTIMIENTOS_POR_VUELTA 14  // total físico: 7 días x 2 alarmas
+// Paso medido en banco: STEPPER_STEPS_PER_REV / COMPARTIMIENTOS_POR_VUELTA
+// redondeado hacia abajo (2048 / 14 = 146,28). Decisión del dueño: la vuelta
+// completa suma 14 * 146 = 2044, ~4 pasos menos que la revolución (margen ~5).
+// El último compartimiento (domingo 2) queda en 13 * 146 = 1898. Como cada
+// dosis vuelve al reed, el redondeo no se acumula entre disparos.
+#define PASOS_POR_COMPARTIMIENTO 146
 #define STEPPER_PASOS_POR_TURNO 8      // T5: pasos cortos por turno, sin bloquear
 #define STEPPER_INTERVALO_MS    10     // T5: pausa entre turnos del motor
-#define HOMING_MAX_PASOS        2048   // T5: tope de homing (una vuelta); evita giro infinito
+// Tope de homing: una vuelta completa (2048) más margen, para que no aborte
+// si el carrusel quedó justo pasado el origen.
+#define HOMING_MAX_PASOS        2560   // T5: tope de homing (una vuelta + margen)
 #define BUZZER_PARPADEO_MS      500    // T5: patrón intermitente on/off del buzzer
 #define BUZZER_DUTY             128    // T5: volumen del buzzer (0-255, 8 bits)
 #define PANIC_DEBOUNCE_MS       50     // T5: antirebote del botón de pánico
